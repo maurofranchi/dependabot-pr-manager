@@ -14,6 +14,9 @@
     <ToolCommandName>manage-dbot-prs</ToolCommandName>
     <PackageOutputPath>./nupkg</PackageOutputPath>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageTags>Dependabot,Pull-requests,Github</PackageTags>
+    <PackageId>dependabot-pr-manager</PackageId>
+    <Description>A .NET Global Tool to manage the dependabot PRs of a configured list of repositories.</Description>
   </PropertyGroup>
 
   <ItemGroup>
