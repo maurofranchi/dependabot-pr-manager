@@ -21,7 +21,7 @@ The tool goes through all the configured repositories and for a each of them fet
 You can either install it from `nuget` with the command:
 
 ```
-dotnet install dependabot-pr-manager --global
+dotnet tool install dependabot-pr-manager --global
 ```
 
 or from a local build with the command:
