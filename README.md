@@ -52,3 +52,7 @@ At the very first run you will be prompted to configure the tool with:
 (the following options were added just for a personal use-case 😅)
 - whether you want the tool to remove the `do-not-auto-tag` label on the last PR of a repo
 - the label `do-not-auto-tag` label's name in case it is different from the default one
+
+# Known Issues
+
+Sometimes dependabot gets stuck and doesn't apply the `rebase` or `recreate` operation. In this case we suggest to manually merge one PR to trigger the checks on the open PRs.
