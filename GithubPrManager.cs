@@ -21,66 +21,66 @@ public static class GithubPrManager
         GitHubConfig config)
     {
         var detailedPr = await client.PullRequest.Get(config.Owner, repository, prNumber);
-            var mergeableState = detailedPr.MergeableState.HasValue ? detailedPr.MergeableState.Value.StringValue : "no value";
-            var prTitleAndNumber = $"{Convert.ToString(detailedPr.Number)} - \"{detailedPr.Title}\"";
-            Console.WriteLine($"{prTitleAndNumber} - {mergeableState}");
-            try
+        var mergeableState = detailedPr.MergeableState.HasValue ? detailedPr.MergeableState.Value.StringValue : "no value";
+        var prTitleAndNumber = $"{Convert.ToString(detailedPr.Number)} - \"{detailedPr.Title}\"";
+        Console.WriteLine($"{prTitleAndNumber} - {mergeableState}");
+        try
+        {
+            switch (mergeableState)
             {
-                switch (mergeableState)
-                {
-                    case "dirty":
+                case "dirty":
+                    await ReviewPr(
+                        client,
+                        config.Owner!,
+                        repository,
+                        detailedPr.Number,
+                        ReviewAction.Recreate,
+                        recreatedPrs);
+
+                    break;
+                case "behind":
+                    await ReviewPr(
+                        client,
+                        config.Owner!,
+                        repository,
+                        detailedPr.Number,
+                        ReviewAction.Rebase,
+                        rebasedPrs);
+
+                    break;
+                case "blocked":
+                case "clean":
+                    rebasedPrs.Remove(detailedPr.Number);
+                    recreatedPrs.Remove(detailedPr.Number);
+                    if (detailedPr.Mergeable == true)
+                    {
+                        await RemoveDoNotAutoTagLabel(
+                            client,
+                            dependabotPrs,
+                            detailedPr,
+                            repository,
+                            config);
+
                         await ReviewPr(
                             client,
                             config.Owner!,
                             repository,
                             detailedPr.Number,
-                            ReviewAction.Recreate,
-                            recreatedPrs);
+                            ReviewAction.Merge,
+                            new List<int>());
 
-                        break;
-                    case "behind":
-                        await ReviewPr(
-                            client,
-                            config.Owner!,
-                            repository,
-                            detailedPr.Number,
-                            ReviewAction.Rebase,
-                            rebasedPrs);
+                        dependabotPrs.Remove(prNumber);
+                    }
 
-                        break;
-                    case "blocked":
-                    case "clean":
-                        rebasedPrs.Remove(detailedPr.Number);
-                        recreatedPrs.Remove(detailedPr.Number);
-                        if (detailedPr.Mergeable == true)
-                        {
-                            await RemoveDoNotAutoTagLabel(
-                                client,
-                                dependabotPrs,
-                                detailedPr,
-                                repository,
-                                config);
-
-                            await ReviewPr(
-                                client,
-                                config.Owner!,
-                                repository,
-                                detailedPr.Number,
-                                ReviewAction.Merge,
-                                new List<int>());
-
-                            dependabotPrs.Remove(prNumber);
-                        }
-
-                        break;
-                }
+                    break;
             }
-            catch (Exception e)
-            {
-                Console.WriteLine($"Failed to manage pr {prTitleAndNumber} - Error: {e.Message}");
-            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"Failed to manage pr {prTitleAndNumber} - Error: {e.Message}");
+        }
     }
-    
+
     public static async Task<List<int>> GetDependabotPrs(IGitHubClient client, string owner, string repository)
     {
         var pullRequests = await client.PullRequest.GetAllForRepository(owner, repository);
