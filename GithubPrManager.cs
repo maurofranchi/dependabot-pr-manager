@@ -6,9 +6,9 @@ public static class GithubPrManager
 {
     public enum ReviewAction
     {
-        Recreate,
-        Rebase,
+        Approve,
         Merge,
+        Recreate,
     }
 
     public static async Task ManagePr(
@@ -16,71 +16,92 @@ public static class GithubPrManager
         int prNumber,
         string repository,
         ICollection<int> recreatedPrs,
-        ICollection<int> rebasedPrs,
+        ICollection<int> approvedPrs,
         ICollection<int> dependabotPrs,
         GitHubConfig config)
     {
         var detailedPr = await client.PullRequest.Get(config.Owner, repository, prNumber);
-            var mergeableState = detailedPr.MergeableState.HasValue ? detailedPr.MergeableState.Value.StringValue : "no value";
-            var prTitleAndNumber = $"{Convert.ToString(detailedPr.Number)} - \"{detailedPr.Title}\"";
-            Console.WriteLine($"{prTitleAndNumber} - {mergeableState}");
-            try
+        var mergeableState = detailedPr.MergeableState.HasValue ? detailedPr.MergeableState.Value.StringValue : "no value";
+        var prTitleAndNumber = $"{Convert.ToString(detailedPr.Number)} - \"{detailedPr.Title}\"";
+
+        Console.WriteLine($"{prTitleAndNumber} - {mergeableState}");
+        try
+        {
+            switch (mergeableState)
             {
-                switch (mergeableState)
-                {
-                    case "dirty":
+                case "dirty":
+                case "behind":
+                    approvedPrs.Remove(detailedPr.Number);
+                    await ReviewPr(
+                        client,
+                        config.Owner!,
+                        repository,
+                        detailedPr.Number,
+                        ReviewAction.Recreate,
+                        recreatedPrs);
+                    break;
+                case "blocked":
+                    recreatedPrs.Remove(detailedPr.Number);
+
+                    var combinedStatus = await client.Repository.Status.GetCombined(config.Owner, repository, detailedPr.Head.Sha);
+                    var blockingChecks = combinedStatus.Statuses.Where(s => s.State != CommitState.Success);
+
+                    var removePr = false;
+                    foreach (var check in blockingChecks)
+                    {
+                        Console.WriteLine($"\t- {check.Context}: {check.State}");
+                        removePr &= check.State.Value is CommitState.Failure or CommitState.Error;
+                    }
+
+                    if (removePr)
+                    {
+                        Console.WriteLine("\tPlease manually check the state of the PR");
+                        dependabotPrs.Remove(prNumber);
+                    }
+                    else
+                    {
                         await ReviewPr(
                             client,
                             config.Owner!,
                             repository,
                             detailedPr.Number,
-                            ReviewAction.Recreate,
-                            recreatedPrs);
-
-                        break;
-                    case "behind":
-                        await ReviewPr(
-                            client,
-                            config.Owner!,
-                            repository,
-                            detailedPr.Number,
-                            ReviewAction.Rebase,
-                            rebasedPrs);
-
-                        break;
-                    case "blocked":
-                    case "clean":
-                        rebasedPrs.Remove(detailedPr.Number);
+                            ReviewAction.Approve,
+                            approvedPrs);
+                    }
+                    break;
+                case "clean":
+                    if (detailedPr.Mergeable == true)
+                    {
+                        approvedPrs.Remove(detailedPr.Number);
                         recreatedPrs.Remove(detailedPr.Number);
-                        if (detailedPr.Mergeable == true)
-                        {
-                            await RemoveDoNotAutoTagLabel(
-                                client,
-                                dependabotPrs,
-                                detailedPr,
-                                repository,
-                                config);
 
-                            await ReviewPr(
-                                client,
-                                config.Owner!,
-                                repository,
-                                detailedPr.Number,
-                                ReviewAction.Merge,
-                                new List<int>());
+                        await RemoveDoNotAutoTagLabel(
+                            client,
+                            dependabotPrs,
+                            detailedPr,
+                            repository,
+                            config);
 
-                            dependabotPrs.Remove(prNumber);
-                        }
+                        await ReviewPr(
+                            client,
+                            config.Owner!,
+                            repository,
+                            detailedPr.Number,
+                            ReviewAction.Merge,
+                            new List<int>());
 
-                        break;
-                }
+                        dependabotPrs.Remove(prNumber);
+                    }
+
+                    break;
             }
-            catch (Exception e)
-            {
-                Console.WriteLine($"Failed to manage pr {prTitleAndNumber} - Error: {e.Message}");
-            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"Failed to manage pr {prTitleAndNumber} - Error: {e.Message}");
+        }
     }
-    
+
     public static async Task<List<int>> GetDependabotPrs(IGitHubClient client, string owner, string repository)
     {
         var pullRequests = await client.PullRequest.GetAllForRepository(owner, repository);
@@ -100,21 +121,23 @@ public static class GithubPrManager
     {
         if (!prsToSkip.Contains(prNumber))
         {
-            // Recreate
             await client.PullRequest.Review.Create(owner, repository, prNumber,
-                new PullRequestReviewCreate
+                    new PullRequestReviewCreate
+                    {
+                        Body = action != ReviewAction.Recreate ? "" : $"@dependabot {action.ToString().ToLowerInvariant()}",
+                        Event = action != ReviewAction.Recreate
+                            ? PullRequestReviewEvent.Approve
+                            : PullRequestReviewEvent.Comment,
+                    });
+
+            if (action is ReviewAction.Merge)
+            {
+                Console.Write($"\tMerging pr {prNumber} - waiting...");
+                await client.PullRequest.Merge(owner, repository, prNumber, new MergePullRequest
                 {
-                    Body = $"@dependabot {action.ToString().ToLowerInvariant()}",
-                    Event = action == ReviewAction.Merge 
-                        ? PullRequestReviewEvent.Approve 
-                        : PullRequestReviewEvent.Comment,
+                    MergeMethod = PullRequestMergeMethod.Rebase,
                 });
 
-            prsToSkip.Add(prNumber);
-            if (action == ReviewAction.Merge)
-            {
-                Console.Write($"\tApproving and merging pr {prNumber} - waiting...");
-                
                 await WaitUntilPrIsMerged(
                     client,
                     owner,
@@ -123,7 +146,8 @@ public static class GithubPrManager
             }
             else
             {
-                Console.WriteLine($"\tReview pr {prNumber} with: {action.ToString()}");
+                Console.WriteLine($"\tReviewed pr {prNumber} with: {action.ToString()}");
+                prsToSkip.Add(prNumber);
             }
         }
     }
@@ -141,7 +165,7 @@ public static class GithubPrManager
         {
             Console.Write("..");
             pr = await client.PullRequest.Get(owner, repository, prNumber);
-            await Task.Delay(TimeSpan.FromSeconds(10));
+            await Task.Delay(TimeSpan.FromSeconds(15));
             attemptsCount++;
         } while (!pr.Merged && attemptsCount < 20);
 

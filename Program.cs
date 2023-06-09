@@ -18,16 +18,17 @@ foreach (var repository in repositories)
     var dependabotPrs = await GithubPrManager.GetDependabotPrs(client, config.Owner!, repository);
 
     var recreatedPrs = new List<int>();
-    var rebasedPrs = new List<int>();
+    var approvedPrs = new List<int>();
     do
     {
         for (var i = 0; i < dependabotPrs.Count; i++)
         {
-            await GithubPrManager.ManagePr(client,
+            await GithubPrManager.ManagePr(
+                client,
                 dependabotPrs[i],
                 repository,
                 recreatedPrs,
-                rebasedPrs,
+                approvedPrs,
                 dependabotPrs, 
                 config);
         }
