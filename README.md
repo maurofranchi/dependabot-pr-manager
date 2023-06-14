@@ -11,7 +11,7 @@ The tool goes through all the configured repositories and for a each of them fet
 
 - Download and install dotnet sdk v7.0.201+
 - Create a [github access_token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token) 
-  - Allow all permissions except delete repo
+  - Allow all `repo` permissions except delete repo
   - Classic token is fine
 - Authorise your github personal token
   - There is a `configure sso` button on your github access token page that needs to be used
