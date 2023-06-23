@@ -17,6 +17,7 @@
     <PackageTags>Dependabot,Pull-requests,Github</PackageTags>
     <PackageId>dependabot-pr-manager</PackageId>
     <Description>A .NET Global Tool to manage the dependabot PRs of a configured list of repositories.</Description>
+    <Version>1.1.0</Version>
   </PropertyGroup>
 
   <!-- Github info -->

@@ -27,7 +27,7 @@ dotnet tool install dependabot-pr-manager --global
 or from a local build with the command:
 
 ```
-dotnet tool install dependabot-pr-manager --add-source .\nupkg --global
+dotnet tool install dependabot-pr-manager --add-source ./nupkg --global
 ```
 
 # How to use it
