@@ -50,7 +50,7 @@ public static class GithubPrManager
                     foreach (var check in blockingChecks)
                     {
                         Console.WriteLine($"\t- {check.Context}: {check.State}");
-                        removePr &= check.State.Value is CommitState.Failure or CommitState.Error;
+                        removePr = removePr || check.State.Value is CommitState.Failure or CommitState.Error;
                     }
 
                     if (removePr)
