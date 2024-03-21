@@ -29,17 +29,18 @@ foreach (var repository in repositories)
                 repository,
                 recreatedPrs,
                 approvedPrs,
-                dependabotPrs, 
+                dependabotPrs,
                 config);
         }
 
         if (dependabotPrs.Count > 0)
         {
-            Console.WriteLine("Sleep for 10s");
-            await Task.Delay(TimeSpan.FromSeconds(10));
+            Console.WriteLine("Sleep for 60s");
+            await Task.Delay(TimeSpan.FromSeconds(60));
         }
 
     } while (dependabotPrs.Any());
 
     Console.WriteLine($"All done for {repository} 🎉");
 }
+
